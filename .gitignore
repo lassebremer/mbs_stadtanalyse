@@ -1,3 +1,4 @@
 .env
 venv312/
 service-account-key.json
+data.db
