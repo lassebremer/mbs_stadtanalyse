@@ -26,7 +26,7 @@ aiohttp==3.11.18
 # Google Cloud Services
 google-cloud-monitoring==2.18.0
 google-auth==2.40.2
-google-api-core==2.25.0rc1
+google-api-core==2.24.0
 
 # Umgebungsvariablen
 python-dotenv==1.1.0
