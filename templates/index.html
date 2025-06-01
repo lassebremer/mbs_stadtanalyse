@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Städteanalyse</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        /* Checkbox-Stil für Tabellenzeilen */
+        .select-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .select-all-checkbox-header {
+            padding: 0.5rem;
+            text-align: center;
+        }
+        tr.selected {
+            background-color: rgba(13, 110, 253, 0.1) !important;
+        }
+        .slider-with-marks {
+            height: 25px;
+            margin-top: -5px;
+            margin-bottom: -5px;
+            background: transparent;
+        }
+        
+        /* Verbesserte Anzeige der Slider-Striche */
+        .slider-with-marks::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #dee2e6 0%, #dee2e6 100%);
+            height: 4px;
+            border-radius: 2px;
+        }
+        
+        .slider-with-marks::-moz-range-track {
+            background: linear-gradient(to right, #dee2e6 0%, #dee2e6 100%);
+            height: 4px;
+            border-radius: 2px;
+        }
+        
+        /* Verbesserter Slider-Knopf */
+        .slider-with-marks::-webkit-slider-thumb {
+            margin-top: -6px;
+            width: 16px;
+            height: 16px;
+            background-color: #0d6efd;
+            border: 1px solid #0d6efd;
+            border-radius: 50%;
+            transition: all .2s ease-in-out;
+        }
+        
+        .slider-with-marks::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background-color: #0d6efd;
+            border: 1px solid #0d6efd;
+            border-radius: 50%;
+            transition: all .2s ease-in-out;
+        }
+        
+        .slider-with-marks:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+        }
+        
+        .slider-with-marks:focus::-moz-range-thumb {
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+        }
+        
+        /* Refresh-Button Styling */
+        .badge .btn-link {
+            text-decoration: none;
+            transition: transform 0.2s ease;
+        }
+        
+        .badge .btn-link:hover {
+            transform: scale(1.2);
+        }
+        
+        .badge .btn-link:disabled {
+            opacity: 0.7;
+        }
+        
+        /* Spinning Animation für Icons */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .bi-arrow-repeat.spin {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Kompakteres Badge-Layout */
+        .keyword-chip-checkbox {
+            margin-top: 0 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" style="height: 100px; flex-shrink: 0;">
+            <div style="flex-grow: 1; text-align: center; padding-left: 20px; padding-right: 20px;">
+                <h1 class="mb-1">Städteanalyse</h1>
+                <p class="text-muted mb-0">Analyse von Städten basierend auf demografischen Daten</p>
+            </div>
+            <div style="width: 100px; flex-shrink: 0;"></div>
+        </div>
+
+        <div class="row">
+            <!-- Parameter Section -->
+            <div class="col-lg-3 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Parameter</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                             <label for="age-range" class="form-label">Altersbereich: <span id="min_age_value">18</span> - <span id="max_age_value">35</span> Jahre</label>
+                             <div class="dual-range-container">
+                                 <div class="slider-track"></div>
+                                 <input type="range" class="form-range min-range" min="18" max="99" step="1" id="min_age" name="min_age" value="18">
+                                 <input type="range" class="form-range max-range" min="18" max="99" step="1" id="max_age" name="max_age" value="35">
+                             </div>
+                         </div>
+
+                        <hr>
+
+                        <div class="mb-3">
+                            <h6 class="mb-3">Gewichtungen:</h6>
+                            <p class="text-muted small mb-2">Wie wichtig ist euch...</p>
+                            <div class="weight-control-container mb-2">
+                                <label for="w_pop" class="form-label"><i class="bi bi-people-fill"></i> Einwohnerzahl: <span id="w_pop_value">30%</span></label>
+                                <div class="slider-container">
+                                    <div class="slider-track-single"></div>
+                                    <input type="range" class="form-range weight-slider" min="0" max="100" step="1" id="w_pop" name="w_pop" value="30">
+                                </div>
+                            </div>
+                            <div class="weight-control-container mb-2">
+                                <label for="w_age" class="form-label"><i class="bi bi-person-check-fill"></i> Zielgruppe: <span id="w_age_value">50%</span></label>
+                                <div class="slider-container">
+                                    <div class="slider-track-single"></div>
+                                    <input type="range" class="form-range weight-slider" min="0" max="100" step="1" id="w_age" name="w_age" value="50">
+                                </div>
+                            </div>
+                            <div class="weight-control-container mb-2">
+                                <label for="w_income" class="form-label"><i class="bi bi-currency-euro"></i> Kaufkraft: <span id="w_income_value">20%</span></label>
+                                 <div class="slider-container">
+                                    <div class="slider-track-single"></div>
+                                    <input type="range" class="form-range weight-slider" min="0" max="100" step="1" id="w_income" name="w_income" value="20">
+                                 </div>
+                             </div>
+                        </div>
+
+                        <button id="analyze" class="btn btn-primary btn-block w-100">Analysieren</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ergebnisse Section (jetzt breiter) -->
+            <div class="col-lg-9 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Ergebnisse der Analyse</h5>
+                        <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#keywordSearchModal" id="keywordSearchBtn">
+                             <i class="bi bi-search me-1"></i> Keyword-Suche
+                         </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="results">
+                            <div class="text-center text-muted">Bitte Parameter wählen und auf "Analysieren" klicken.</div>
+                        </div>
+                        <div id="loading-spinner" class="text-center" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                        <div id="error-message" class="alert alert-danger mt-3" style="display: none;"></div>
+
+                        <div id="results-details" class="mt-3" style="display: none;">
+                             <ul class="nav nav-tabs" id="resultsTab" role="tablist">
+                                 <li class="nav-item" role="presentation">
+                                     <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" role="tab" aria-controls="dashboard" aria-selected="true">Dashboard</button>
+                                 </li>
+                                 <li class="nav-item" role="presentation">
+                                     <button class="nav-link" id="advanced-analysis-tab" data-bs-toggle="tab" data-bs-target="#advanced-analysis" type="button" role="tab" aria-controls="advanced-analysis" aria-selected="false">Erweiterte Analyse</button>
+                                 </li>
+                             </ul>
+                             <div class="tab-content pt-3" id="resultsTabContent">
+                                 <div class="tab-pane fade show active" id="dashboard" role="tabpanel" aria-labelledby="dashboard-tab">
+                                     <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+                                         <div id="selectionInfo" class="text-muted small">
+                                             <span id="selectedCount">0</span> Städte ausgewählt 
+                                             <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="right" title="Verwenden Sie die Checkboxen links, um Städte auszuwählen. Mit Umschalt+Klick können Sie mehrere auf einmal auswählen."></i>
+                                         </div>
+                                         <button id="exportSelectedBtn" class="btn btn-sm btn-success" disabled>
+                                             <i class="bi bi-file-earmark-excel"></i> Auswahl exportieren
+                                         </button>
+                                     </div>
+                                     <div class="d-flex justify-content-between align-items-center mb-2">
+                                         <div class="row g-2 flex-grow-1 me-2">
+                                             <div class="col-md-4">
+                                                 <input type="text" id="stadtSearchInput" class="form-control form-control-sm" placeholder="Stadt suchen...">
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <input type="text" id="bundeslandSearchInput" class="form-control form-control-sm" placeholder="Bundesland suchen...">
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <input type="text" id="vertriebsnummerSearchInput" class="form-control form-control-sm" placeholder="Vertriebsnummer suchen...">
+                                             </div>
+                                         </div>
+                                         <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterPanel" aria-expanded="false" aria-controls="filterPanel">
+                                             <i class="bi bi-funnel"></i> Erweiterte Filter
+                                         </button>
+                                     </div>
+                                     <div class="collapse mb-3" id="filterPanel">
+                                         <div class="card card-body bg-light p-3">
+                                             <h6 class="mb-3">Filter</h6>
+                                             <div class="row">
+                                                 <div class="col-md-3 mb-3">
+                                                     <label class="form-label fw-bold">Bundesländer</label>
+                                                     <div id="stateFilterContainer" class="filter-checkbox-list">
+                                                         <div class="text-muted small">Lade...</div>
+                                                     </div>
+                                                 </div>
+                                                 <div class="col-md-3 mb-3">
+                                                     <label class="form-label fw-bold">Cluster</label>
+                                                     <div id="clusterFilterContainer" class="filter-checkbox-list">
+                                                         <div class="text-muted small">Lade Cluster...</div>
+                                                     </div>
+                                                 </div>
+                                                 <div class="col-md-6">
+                                                     <div class="row">
+                                                         <div class="col-sm-6 mb-3">
+                                                             <label class="form-label fw-bold">Einwohner</label>
+                                                             <input type="number" class="form-control form-control-sm num-filter" id="minPopulation" placeholder="Min">
+                                                             <input type="number" class="form-control form-control-sm mt-1 num-filter" id="maxPopulation" placeholder="Max">
+                                                         </div>
+                                                         <div class="col-sm-6 mb-3">
+                                                             <label class="form-label fw-bold">Einkommen</label>
+                                                             <input type="number" class="form-control form-control-sm num-filter" id="minIncome" placeholder="Min">
+                                                             <input type="number" class="form-control form-control-sm mt-1 num-filter" id="maxIncome" placeholder="Max">
+                                                         </div>
+                                                         <div class="col-sm-6 mb-3">
+                                                             <label class="form-label fw-bold">Zielgruppe (%)</label>
+                                                             <input type="number" class="form-control form-control-sm num-filter" id="minTarget" placeholder="Min" min="0" max="100">
+                                                             <input type="number" class="form-control form-control-sm mt-1 num-filter" id="maxTarget" placeholder="Max" min="0" max="100">
+                                                         </div>
+                                                         <div class="col-sm-6 mb-3">
+                                                             <label class="form-label fw-bold">Score (%)</label>
+                                                             <input type="number" class="form-control form-control-sm num-filter" id="minScore" placeholder="Min" min="0" max="100" step="0.01">
+                                                             <input type="number" class="form-control form-control-sm mt-1 num-filter" id="maxScore" placeholder="Max" min="0" max="100" step="0.01">
+                                                         </div>
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                             <hr>
+                                             <div class="d-flex justify-content-end">
+                                                 <button id="resetAllFiltersBtn" class="btn btn-sm btn-outline-secondary me-2">
+                                                     <i class="bi bi-arrow-counterclockwise"></i> Alle Filter zurücksetzen
+                                                 </button>
+                                                 <button id="applyFiltersBtn" class="btn btn-sm btn-primary">
+                                                     <i class="bi bi-funnel-fill"></i> Filter anwenden
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     </div>
+                                     <div id="table-container"></div>
+                                     <div id="pie-chart-container" class="mt-4 text-center"></div>
+                                     <div id="city-pie-chart-container" class="mt-4 text-center" style="display: none;">
+                                         <h5 id="city-pie-chart-title"></h5>
+                                         <img id="city-pie-chart-img" src="" alt="Altersverteilung Stadt" class="img-fluid" style="max-width: 400px;">
+                                         <button id="close-city-pie-chart" class="btn btn-sm btn-outline-secondary mt-2">Schließen</button>
+                                     </div>
+                                 </div>
+                                 <div class="tab-pane fade" id="advanced-analysis" role="tabpanel" aria-labelledby="advanced-analysis-tab">
+                                     <h4>Erweiterte Analyse</h4>
+                                     
+                                     <!-- NEU: Sub-Tab Navigation -->
+                                     <ul class="nav nav-tabs mb-3" id="advancedAnalysisSubTabs" role="tablist">
+                                         <li class="nav-item" role="presentation">
+                                             <button class="nav-link active" id="subtab-scatter-button" data-bs-toggle="pill" data-bs-target="#subtab-scatter" type="button" role="tab" aria-controls="subtab-scatter" aria-selected="true">Scatter Plot</button>
+                                         </li>
+                                         <li class="nav-item" role="presentation">
+                                             <button class="nav-link" id="subtab-cluster1-button" data-bs-toggle="pill" data-bs-target="#subtab-cluster1" type="button" role="tab" aria-controls="subtab-cluster1" aria-selected="false">Clustering (Eink.)</button>
+                                         </li>
+                                         <li class="nav-item" role="presentation">
+                                             <button class="nav-link" id="subtab-cluster2-button" data-bs-toggle="pill" data-bs-target="#subtab-cluster2" type="button" role="tab" aria-controls="subtab-cluster2" aria-selected="false">Clustering (Zielgr.)</button>
+                                         </li>
+                                     </ul>
+
+                                     <!-- NEU: Sub-Tab Content -->
+                                     <div class="tab-content" id="advancedAnalysisSubTabsContent">
+                                         <!-- Sub-Tab Pane: Scatter Plot -->
+                                         <div class="tab-pane fade show active" id="subtab-scatter" role="tabpanel" aria-labelledby="subtab-scatter-button">
+                                             <h5>Scatter Plot (Einwohner vs. Einkommen)</h5>
+                                             <div id="scatter-plot-container"></div>
+                                             <p class="text-center"><a href="/interactive_scatter" id="interactive-scatter-link" target="_blank">Interaktiven Scatter Plot öffnen</a></p>
+                                         </div>
+
+                                         <!-- Sub-Tab Pane: Clustering 1 -->
+                                         <div class="tab-pane fade" id="subtab-cluster1" role="tabpanel" aria-labelledby="subtab-cluster1-button">
+                                             <h5>Clustering (Einwohner vs. Einkommen)</h5>
+                                             <div id="clustering-plot-container"></div>
+                                             <div id="clustering-table-container" class="mt-2 small table-responsive"></div>
+                                             <p class="text-center"><a href="/interactive_clustering" id="interactive-clustering-link" target="_blank">Interaktives Clustering öffnen</a></p>
+                                         </div>
+
+                                         <!-- Sub-Tab Pane: Clustering 2 -->
+                                         <div class="tab-pane fade" id="subtab-cluster2" role="tabpanel" aria-labelledby="subtab-cluster2-button">
+                                             <h5>Clustering (Einwohner vs. Zielgruppe)</h5>
+                                             <div id="clustering2-plot-container"></div>
+                                             <div id="clustering2-table-container" class="mt-2 small table-responsive"></div>
+                                             <p class="text-center"><a href="/interactive_clustering2" id="interactive-clustering2-link" target="_blank">Interaktives Clustering 2 öffnen</a></p>
+                                         </div>
+                                     </div>
+                                     <!-- ENDE: Sub-Tab Content -->
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- Ende container-fluid -->
+
+    <!-- Modales Fenster für Keyword-Suche (Google Places) -->
+    <div class="modal fade" id="keywordSearchModal" tabindex="-1" aria-labelledby="keywordSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <!-- Tab-Navigation -->
+                    <ul class="nav nav-tabs" id="keywordSearchTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="saved-results-tab-button" data-bs-toggle="tab" data-bs-target="#saved-results-tab-pane" type="button" role="tab" aria-controls="saved-results-tab-pane" aria-selected="true">Gespeicherte Ergebnisse</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="live-search-tab-button" data-bs-toggle="tab" data-bs-target="#live-search-tab-pane" type="button" role="tab" aria-controls="live-search-tab-pane" aria-selected="false">Live-Suche</button>
+                        </li>
+                    </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tab-content" id="keywordSearchTabsContent">
+                        <!-- Tab 1: Gespeicherte Ergebnisse -->
+                        <div class="tab-pane fade show active" id="saved-results-tab-pane" role="tabpanel" aria-labelledby="saved-results-tab-button">
+                            <h5 id="saved-results-title">Gespeicherte Ergebnisse für <span id="selected-cities-count-modal">X</span> ausgewählte Städte</h5>
+                            <hr>
+                            
+                            <!-- Keyword-Liste als Checkbox-Chips -->
+                            <div class="mb-3">
+                                <label class="form-label">Suchbegriffe:</label>
+                                <!-- Neue Legende für Refresh-Funktion -->
+                                <div class="text-muted small mb-2">
+                                    <i class="bi bi-info-circle"></i> Wählen Sie Suchbegriffe aus oder klicken Sie auf 
+                                    <i class="bi bi-arrow-clockwise text-success"></i> um einzelne Begriffe zu aktualisieren.
+                                </div>
+                                <div id="keyword-chips-container" class="d-flex flex-wrap gap-2 mb-2" style="min-height: 38px;">
+                                    <!-- Chips werden hier per JS eingefügt -->
+                                    <span class="text-muted small fst-italic">Lade Suchbegriffe...</span>
+                                </div>
+                            </div>
+                            
+                            <div class="modal-footer mt-4 px-0 pb-0">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                                <button type="button" class="btn btn-primary" id="show-saved-results-btn" disabled>
+                                    <i class="bi bi-eye-fill"></i> Ergebnisse anzeigen
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: Live-Suche -->
+                        <div class="tab-pane fade" id="live-search-tab-pane" role="tabpanel" aria-labelledby="live-search-tab-button">
+                            <h5>Neue Live-Suche (alle Städte)</h5>
+                            <p class="text-muted small mb-2">Führt eine Suche über alle Städte durch.</p>
+                            <hr>
+
+                            <!-- API Metriken Warnung -->
+                            <div id="api-metrics-warning" class="alert alert-warning py-2 px-3 mb-3" style="display: none;">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <div class="small">
+                                        <div id="api-metrics-lines"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Suchfeld-Bereich -->
+                            <div class="mb-3">
+                                <label for="live-search-keyword-input" class="form-label">Suchbegriff:</label>
+                                
+                                <!-- Eingabefeld -->
+                                <div id="keyword-input-container" class="input-group">
+                                    <input type="text" class="form-control" id="live-search-keyword-input" placeholder="z.B. Bar, Club, Restaurant">
+                                    <button class="btn btn-outline-secondary" type="button" id="clear-keyword-input">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">Drücken Sie Enter oder klicken Sie auf "Live-Suche starten".</div>
+                            </div>
+                            
+                            <div class="modal-footer mt-4 px-0 pb-0">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                                <button type="button" class="btn btn-success" id="start-live-search-btn" disabled>
+                                     <i class="bi bi-broadcast"></i> Live-Suche starten
+                                </button>
+                            </div>
+                            
+                            <!-- Container für Statusanzeige der Suche -->
+                            <div id="search-status-container" class="mt-3 p-3 bg-light border rounded" style="display: none;">
+                                <h6 class="mb-2"><i class="bi bi-info-circle me-1"></i>Suchstatus:</h6>
+                                <div id="search-progress" class="small text-monospace" style="max-height: 300px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales Fenster für lokale Suche (Details) - bleibt unverändert -->
+    <div class="modal fade" id="localSearchModal" tabindex="-1" aria-labelledby="localSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="localSearchModalLabel">Lokale Suche für <span id="modalCityName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="searchTermSelect" class="form-label">Suchbegriff auswählen:</label>
+                            <select class="form-select" id="searchTermSelect">
+                                <option value="Club">Club</option>
+                                <option value="Bar">Bar</option>
+                                <!-- Weitere vordefinierte Begriffe hier -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="newSearchTerm" class="form-label">Oder neuen Begriff eingeben:</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="newSearchTerm" placeholder="z.B. Eventlocation">
+                                <button class="btn btn-outline-secondary" type="button" id="addNewSearchTerm">Hinzufügen</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="searchInfo" class="mb-3 p-2 border rounded bg-light d-none">
+                        Letzte Suche: <span id="lastSearchDate"></span>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-secondary" id="getCachedDataBtn">
+                                <i class="bi bi-cloud-arrow-down"></i> Gespeicherte Daten abrufen
+                            </button>
+                            <button class="btn btn-sm btn-primary" id="liveSearchBtn">
+                                <i class="bi bi-broadcast"></i> Live-Suche starten
+                            </button>
+                        </div>
+                         <div id="modalLoading" class="spinner-border spinner-border-sm text-primary ms-2 d-none" role="status">
+                             <span class="visually-hidden">Laden...</span>
+                         </div>
+                    </div>
+                    <div id="searchInfoNotFound" class="alert alert-warning d-none" role="alert">
+                        Für diese Stadt und diesen Suchbegriff wurden noch keine Daten abgerufen. Starten Sie eine Live-Suche.
+                         <button class="btn btn-sm btn-primary ms-2" id="liveSearchBtnDirect">
+                             <i class="bi bi-broadcast"></i> Live-Suche starten
+                         </button>
+                          <div id="modalLoadingDirect" class="spinner-border spinner-border-sm text-primary ms-2 d-none" role="status">
+                             <span class="visually-hidden">Laden...</span>
+                         </div>
+                    </div>
+
+
+                    <hr>
+                    <h5>Ergebnisse:</h5>
+                    <!-- NEU: Sortieroptionen -->
+                    <div id="modalSortControls" class="mb-2 d-none"> <!-- Initial versteckt -->
+                         <small class="me-2">Sortieren nach:</small>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Sortieroptionen">
+                            <button type="button" class="btn btn-outline-secondary sort-btn active" data-sort="default">
+                                Standard
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary sort-btn" data-sort="rating">
+                                <i class="bi bi-star-fill"></i> Beste Bewertung
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary sort-btn" data-sort="count">
+                                <i class="bi bi-people-fill"></i> Meiste Bewertungen
+                            </button>
+                        </div>
+                    </div>
+                    <div id="modalResultsList" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Ergebnisliste wird hier angezeigt -->
+                        <p class="text-muted">Noch keine Ergebnisse geladen.</p>
+                    </div>
+                    <div id="modalPlaceDetails" class="d-none mt-3"> 
+                        <!-- Detailansicht wird hier dynamisch gefüllt -->
+                        <button class="btn btn-sm btn-outline-secondary mb-3" id="backToListBtn">
+                            <i class="bi bi-arrow-left"></i> Zurück zur Liste
+                        </button>
+                        <h5 id="detailPlaceName"></h5>
+                        <p id="detailPlaceAddress"></p>
+                        <div id="detailPlaceRating" class="d-flex align-items-center">
+                            <!-- Rating-Sterne hier -->
+                            <!-- Button/Link zum Anzeigen von Reviews wird dynamisch per JS hinzugefügt -->
+                        </div>
+                        <div id="detailPlaceHours"></div>
+                        <div id="detailPlaceContact"></div>
+                        <!-- Neuer Container für Bewertungen (einklappbar) -->
+                        <div class="collapse mt-3" id="detailPlaceReviewsContainer">
+                            <h6>Bewertungen (letztes Jahr):</h6>
+                            <div id="detailPlaceReviewsList" class="list-group list-group-flush">
+                                <!-- Bewertungen werden hier dynamisch eingefügt -->
+                            </div>
+                        </div>
+                        <div id="detailPlacePhotos" class="row row-cols-2 row-cols-md-3 g-2 mt-2"></div> 
+                    </div>
+                     <div id="modalError" class="alert alert-danger mt-2 d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Korrigierte JS-Links: jQuery zuerst, dann Bootstrap 5 Bundle -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Dein benutzerdefiniertes Skript -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <!-- Google Places Suchfunktion -->
+    <script src="{{ url_for('static', filename='js/google_places_search.js') }}"></script>
+</body>
+</html> 

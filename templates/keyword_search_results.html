@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyword Suchergebnisse</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { padding: 20px; padding-top: 80px; } /* Mehr Padding oben für fixierten Button */
+        .city-section { margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+        .place-card { margin-bottom: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .place-card .card-header { background-color: #f8f9fa; font-weight: bold; display: flex; align-items: center; } /* Flexbox für Checkbox */
+        .place-card .card-body { font-size: 0.9rem; }
+        .rating-stars .fa-star { color: #ffc107; }
+        .rating-stars .fa-star-half-alt { color: #ffc107; }
+        .rating-stars .text-muted .fa-star { color: #e0e0e0; } /* Graue Sterne für keine Wertung oder Platzhalter */
+        .keywords-list span { background-color: #e9ecef; padding: 2px 6px; border-radius: 3px; margin-right: 5px; font-size: 0.8rem;}
+        .review { border-top: 1px dashed #eee; padding-top: 10px; margin-top: 10px; }
+        .review:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+        .opening-hours { white-space: pre-line; } /* Zeilenumbrüche in Öffnungszeiten respektieren */
+        .editorial-summary { font-style: italic; color: #555; margin-top: 10px; font-size: 0.85rem; }
+        .city-header-controls { display: flex; align-items: center; } /* Für Stadt-Checkbox */
+        .select-checkbox-city { margin-right: 15px; transform: scale(1.3); } /* Größere Stadt-Checkbox */
+        .select-checkbox-place { margin-right: 10px; transform: scale(1.2); } /* Ort-Checkbox */
+        .export-button-container {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            z-index: 1030; /* Über anderen Elementen */
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="export-button-container">
+            <button id="export-selected-btn" class="btn btn-success" disabled>
+                <i class="fas fa-file-excel me-2"></i>Auswahl exportieren
+            </button>
+        </div>
+
+         <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" style="height: 300px; flex-shrink: 0;">
+            <div style="flex-grow: 1; text-align: center; padding-left: 20px; padding-right: 20px;">
+                <h1 class="mb-1">Keyword Suchergebnisse</h1>
+             </div>
+             <div style="width: 300px; flex-shrink: 0;"></div>
+        </div>
+
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        {% if results %}
+            {% for city_id, city_data in results.items() %}
+                 {% set city_collapse_id = "city-collapse-" ~ city_id %}
+                 {% set city_checkbox_id = "city-checkbox-" ~ city_id %}
+                <section class="city-section" data-city-id="{{ city_id }}">
+                    {# Stadt-Header mit Checkbox #}
+                    <div class="city-header-controls mb-2"> {# Hinzugefügter Div für Layout #}
+                         <input type="checkbox" class="form-check-input select-checkbox-city" id="{{ city_checkbox_id }}" data-city-id="{{ city_id }}" title="Alle Orte in {{ city_data.city_name }} auswählen/abwählen">
+                         <h2 class="mb-0 flex-grow-1"> {# Nimmt restlichen Platz ein #}
+                             <button class="btn btn-link text-start text-decoration-none p-0 w-100 collapsed"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#{{ city_collapse_id }}"
+                                    aria-expanded="false"
+                                    aria-controls="{{ city_collapse_id }}">
+                                <span class="fw-bold fs-4">{{ city_data.city_name }}</span> {# Größere Schrift für Stadt #}
+                                <span class="badge bg-secondary ms-2">{{ city_data.places|length if city_data.places else 0 }} Treffer</span>
+                                <i class="fas fa-chevron-down float-end mt-1"></i> {# Indikator #}
+                            </button>
+                        </h2>
+                    </div>
+
+                    {# Einklappbarer Bereich für die Orte dieser Stadt #}
+                    <div class="collapse pt-3" id="{{ city_collapse_id }}">
+                        {% if city_data.places %}
+                            {% for place in city_data.places %}
+                                {% set collapse_id = "place-collapse-" ~ city_id ~ "-" ~ loop.index %}
+                                {% set place_checkbox_id = "place-checkbox-" ~ place.place_id %}
+                                <div class="card place-card">
+                                    <div class="card-header">
+                                        {# Checkbox für den einzelnen Ort #}
+                                        <input type="checkbox" class="form-check-input select-checkbox-place" id="{{ place_checkbox_id }}" data-place-id="{{ place.place_id }}" data-city-id="{{ city_id }}" title="Diesen Ort auswählen/abwählen">
+                                        {# Button zum Einklappen (nimmt restlichen Platz) #}
+                                        <button class="btn btn-link text-start text-decoration-none p-0 w-100 collapsed ms-2" {# Kleiner Abstand zur Checkbox #}
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#{{ collapse_id }}"
+                                                aria-expanded="false"
+                                                aria-controls="{{ collapse_id }}">
+                                            {# Angepasstes Layout für Name/Bewertung im Button #}
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                {# Name und Typ links #}
+                                                <div class="me-auto">
+                                                    <span class="fw-bold">{{ place.displayName.text if place.displayName else place.name }}</span>
+                                                    {% if place.primary_type %}
+                                                        <small class="text-muted ms-1">({{ place.primary_type.replace('_', ' ').title() }})</small>
+                                                    {% endif %}
+                                                </div>
+                                                {# Bewertung rechts #}
+                                                {% if place.rating is not none %}
+                                                    <span class="rating-stars me-3"> {# Mehr Abstand zum Pfeil #}
+                                                        {% set rating_val = place.rating | float %}
+                                                        {% set full_stars = rating_val | int %}
+                                                        {% set half_star = 1 if (rating_val - full_stars) >= 0.25 and (rating_val - full_stars) < 0.75 else 0 %}
+                                                        {% set full_stars = full_stars + 1 if (rating_val - full_stars) >= 0.75 else full_stars %}
+                                                        {% set empty_stars = 5 - full_stars - half_star %}
+    
+                                                        {% for _ in range(full_stars) %}<i class="fas fa-star fa-xs"></i>{% endfor %}
+                                                        {% if half_star %}<i class="fas fa-star-half-alt fa-xs"></i>{% endif %}
+                                                        <span class="text-muted">{% for _ in range(empty_stars) %}<i class="fas fa-star fa-xs"></i>{% endfor %}</span>
+                                                        <small class="text-muted ms-1">({{ "%.1f"|format(place.rating) }}/{{ place.user_rating_count | int }})</small>
+                                                    </span>
+                                                {% endif %}
+                                                {# Collapse Indikator Icon #}
+                                                <i class="fas fa-chevron-down"></i>
+                                             </div>
+                                        </button>
+                                    </div>
+                                    <div class="collapse" id="{{ collapse_id }}">
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-7">
+                                                    {% if place.formatted_address %}
+                                                        <p><i class="fas fa-map-marker-alt me-2"></i>{{ place.formatted_address }}</p>
+                                                    {% endif %}
+                                                    {% if place.phone_number %}
+                                                        <p><i class="fas fa-phone me-2"></i>{{ place.phone_number }}</p>
+                                                    {% endif %}
+                                                    {% if place.website_uri %}
+                                                        <p><i class="fas fa-globe me-2"></i><a href="{{ place.website_uri }}" target="_blank" rel="noopener noreferrer">Webseite</a></p>
+                                                    {% endif %}
+                                                     {% if place.google_maps_uri %}
+                                                        <p><i class="fab fa-google me-2"></i><a href="{{ place.google_maps_uri }}" target="_blank" rel="noopener noreferrer">Google Maps</a></p>
+                                                    {% endif %}
+                                                    {% if place.keywords %}
+                                                        <p class="keywords-list"><i class="fas fa-tags me-2"></i>
+                                                            {% for kw in place.keywords %}
+                                                                <span>{{ kw }}</span>
+                                                            {% endfor %}
+                                                        </p>
+                                                    {% endif %}
+                                                    {% if place.editorial_summary %}
+                                                        <div class="editorial-summary">
+                                                            <i class="fas fa-info-circle me-1"></i> {{ place.editorial_summary }}
+                                                        </div>
+                                                    {% endif %}
+                                                    {% if place.supports_live_music is not none %}
+                                                        <p><i class="fas {{ 'fa-check-circle text-success' if place.supports_live_music else 'fa-times-circle text-danger' }} me-2"></i>Live-Musik</p>
+                                                    {% endif %}
+                                                     {% if place.outdoor_seating is not none %}
+                                                        <p><i class="fas {{ 'fa-check-circle text-success' if place.outdoor_seating else 'fa-times-circle text-danger' }} me-2"></i>Außensitzplätze</p>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="col-md-5">
+                                                    {% if place.rating is not none %}
+                                                        <p class="rating-stars">
+                                                            <strong>Bewertung: {{ "%.1f"|format(place.rating) }}</strong>
+                                                            {% set rating_val = place.rating | float %}
+                                                            {% set full_stars = rating_val | int %}
+                                                            {% set half_star = 1 if (rating_val - full_stars) >= 0.25 and (rating_val - full_stars) < 0.75 else 0 %}
+                                                            {% set full_stars = full_stars + 1 if (rating_val - full_stars) >= 0.75 else full_stars %}
+                                                            {% set empty_stars = 5 - full_stars - half_star %}
+
+                                                            {% for _ in range(full_stars) %}<i class="fas fa-star"></i>{% endfor %}
+                                                            {% if half_star %}<i class="fas fa-star-half-alt"></i>{% endif %}
+                                                            <span class="text-muted">{% for _ in range(empty_stars) %}<i class="fas fa-star"></i>{% endfor %}</span>
+                                                            ({{ place.user_rating_count | int }} Bewertungen)
+                                                        </p>
+                                                    {% else %}
+                                                         <p class="text-muted">Keine Bewertung verfügbar</p>
+                                                    {% endif %}
+
+                                                    {% if place.opening_hours_text %}
+                                                        <h6>Öffnungszeiten:</h6>
+                                                        <p class="opening-hours">{{ place.opening_hours_text }}</p>
+                                                    {% else %}
+                                                        <p class="text-muted">Keine Öffnungszeiten verfügbar</p>
+                                                    {% endif %}
+
+                                                    {% if place.reviews %}
+                                                         <h6>Neueste Reviews:</h6>
+                                                         {% for review in place.reviews %}
+                                                            <div class="review">
+                                                                <p class="mb-1">
+                                                                    <strong>{{ review.author_name if review.author_name else 'Anonym' }}</strong>
+                                                                    {% if review.rating %}
+                                                                        <span class="rating-stars ms-2">
+                                                                            {% set rev_rating = review.rating | float %}
+                                                                            {% for _ in range(rev_rating | int) %}<i class="fas fa-star fa-xs"></i>{% endfor %}
+                                                                            {% if (rev_rating - (rev_rating | int)) >= 0.5 %}<i class="fas fa-star-half-alt fa-xs"></i>{% endif %}
+                                                                        </span>
+                                                                    {% endif %}
+                                                                    <small class="text-muted float-end">{{ review.relative_publish_time_description }}</small>
+                                                                </p>
+                                                                {% if review.text %}
+                                                                     <p class="mb-0 fst-italic" style="font-size: 0.85rem;">"{{ review.text }}"</p>
+                                                                {% endif %}
+                                                            </div>
+                                                         {% endfor %}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p>Keine Orte für die ausgewählten Keywords in dieser Stadt gefunden.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            {% else %}
+                <p>Keine Ergebnisse für die ausgewählten Städte gefunden.</p>
+            {% endfor %}
+        {% else %}
+             <p>Es wurden keine Daten zur Anzeige übermittelt.</p>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const cityCheckboxes = document.querySelectorAll('.select-checkbox-city');
+            const placeCheckboxes = document.querySelectorAll('.select-checkbox-place');
+            const exportButton = document.getElementById('export-selected-btn');
+
+            // Funktion zum Aktualisieren des Export-Buttons
+            function updateExportButtonState() {
+                const anyPlaceSelected = document.querySelector('.select-checkbox-place:checked') !== null;
+                exportButton.disabled = !anyPlaceSelected;
+            }
+
+            // --- Event Listener für Stadt-Checkboxes ---
+            cityCheckboxes.forEach(cityCheckbox => {
+                cityCheckbox.addEventListener('change', function () {
+                    const cityId = this.dataset.cityId;
+                    const isChecked = this.checked;
+                    // Finde alle Place-Checkboxes für diese Stadt
+                    const placesInCity = document.querySelectorAll(`.select-checkbox-place[data-city-id="${cityId}"]`);
+                    placesInCity.forEach(placeCheckbox => {
+                        placeCheckbox.checked = isChecked;
+                    });
+                    updateExportButtonState();
+                });
+            });
+
+            // --- Event Listener für einzelne Place-Checkboxes ---
+            placeCheckboxes.forEach(placeCheckbox => {
+                placeCheckbox.addEventListener('change', function () {
+                    const cityId = this.dataset.cityId;
+                    const cityCheckbox = document.getElementById(`city-checkbox-${cityId}`);
+                    if (cityCheckbox) {
+                        // Finde alle Place-Checkboxes für diese Stadt
+                        const placesInCity = document.querySelectorAll(`.select-checkbox-place[data-city-id="${cityId}"]`);
+                        const allChecked = Array.from(placesInCity).every(cb => cb.checked);
+                        const someChecked = Array.from(placesInCity).some(cb => cb.checked);
+
+                        if (allChecked) {
+                            cityCheckbox.checked = true;
+                            cityCheckbox.indeterminate = false;
+                        } else if (someChecked) {
+                            cityCheckbox.checked = false;
+                            cityCheckbox.indeterminate = true; // Teilweise ausgewählt
+                        } else {
+                            cityCheckbox.checked = false;
+                            cityCheckbox.indeterminate = false;
+                        }
+                    }
+                    updateExportButtonState();
+                });
+            });
+
+            // --- Event Listener für Export-Button ---
+            exportButton.addEventListener('click', function () {
+                const selectedPlaceIds = Array.from(document.querySelectorAll('.select-checkbox-place:checked'))
+                                             .map(cb => cb.dataset.placeId);
+
+                if (selectedPlaceIds.length === 0) {
+                    alert('Bitte wählen Sie mindestens einen Ort für den Export aus.');
+                    return;
+                }
+
+                // Deaktiviere Button während des Exports
+                this.disabled = true;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exportiere...';
+
+                fetch('{{ url_for("export_keyword_results") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // CSRF Token hinzufügen, falls benötigt (hier nicht implementiert)
+                        // 'X-CSRFToken': 'AUSKOMMENTIERT'
+                    },
+                    body: JSON.stringify({ place_ids: selectedPlaceIds })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                         // Versuche, Fehlerdetails aus JSON zu lesen
+                         return response.json().then(errData => {
+                             throw new Error(errData.error || `Serverfehler: ${response.status}`);
+                         }).catch(() => {
+                              // Fallback, wenn JSON-Lesen fehlschlägt
+                              throw new Error(`Serverfehler: ${response.status}`);
+                         });
+                    }
+                     // Prüfe, ob es eine Datei zum Download gibt
+                     const disposition = response.headers.get('Content-Disposition');
+                     if (disposition && disposition.indexOf('attachment') !== -1) {
+                         return response.blob().then(blob => ({ blob: blob, filename: getFilename(disposition) }));
+                     } else {
+                          // Keine Datei, wahrscheinlich eine JSON-Antwort (z.B. Fehler)
+                          return response.json().then(data => {
+                              throw new Error(data.error || 'Unerwartete Serverantwort');
+                          });
+                     }
+                })
+                 .then(({ blob, filename }) => {
+                     // Download auslösen
+                     const url = window.URL.createObjectURL(blob);
+                     const a = document.createElement('a');
+                     a.style.display = 'none';
+                     a.href = url;
+                     a.download = filename || 'export.xlsx'; // Fallback-Dateiname
+                     document.body.appendChild(a);
+                     a.click();
+                     window.URL.revokeObjectURL(url);
+                     document.body.removeChild(a);
+
+                     // Button zurücksetzen
+                     this.disabled = false;
+                     this.innerHTML = '<i class="fas fa-file-excel me-2"></i>Auswahl exportieren';
+                     alert('Export erfolgreich gestartet.');
+                 })
+                .catch(error => {
+                    console.error('Exportfehler:', error);
+                    alert(`Fehler beim Export: ${error.message}`);
+                    // Button zurücksetzen
+                    this.disabled = false; // Re-enable bei Fehler, damit erneut versucht werden kann
+                    this.innerHTML = '<i class="fas fa-file-excel me-2"></i>Auswahl exportieren';
+                     updateExportButtonState(); // Stelle sicher, dass der Status korrekt ist
+                });
+            });
+
+             // Hilfsfunktion zum Extrahieren des Dateinamens aus dem Content-Disposition Header
+             function getFilename(disposition) {
+                 const filenameRegex = /filename[^;=\\n]*=((['\"]).*?\\2|[^;\\n]*)/;
+                 const matches = filenameRegex.exec(disposition);
+                 if (matches != null && matches[1]) {
+                     let filename = matches[1].replace(/['\"]/g, '');
+                     // Dekodiere UTF-8 Dateinamen (RFC 5987)
+                     try {
+                         filename = decodeURIComponent(filename.replace(/UTF-8''/i, ''));
+                     } catch (e) {
+                          // Behalte den Namen, wenn die Dekodierung fehlschlägt
+                     }
+                     return filename;
+                 }
+                 return null;
+             }
+
+            // Initialen Status des Export-Buttons setzen
+            updateExportButtonState();
+        });
+    </script>
+</body>
+</html> 

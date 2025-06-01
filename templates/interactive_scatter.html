@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktiver Städtevergleich - Einwohnerzahl vs. Einkommen</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        #loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 400px;
+        }
+        #plot-container {
+            height: 600px;
+            width: 100%;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #17a2b8;
+        }
+        .btn-back {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="btn btn-outline-secondary btn-back">&larr; Zurück zur Hauptseite</a>
+        
+        <h1 class="text-center">Interaktiver Städtevergleich</h1>
+        
+        <div class="info-box">
+            <h5>Hinweise zur Bedienung:</h5>
+            <ul>
+                <li>Zoomen: Benutzen Sie das Mausrad oder ziehen Sie einen Bereich mit gedrückter Maustaste auf, um zu zoomen</li>
+                <li>Verschieben: Klicken und ziehen Sie mit der Maus im Diagramm</li>
+                <li>Informationen: Fahren Sie mit der Maus über einen Datenpunkt, um Details zu sehen</li>
+                <li>Zurücksetzen: Doppelklicken Sie in den Plot, um zur Ursprungsansicht zurückzukehren</li>
+            </ul>
+        </div>
+        
+        <div id="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Lädt...</span>
+            </div>
+        </div>
+        
+        <div id="plot-container" style="display: none;"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Parameter aus der aktuellen Sitzung für die Analyse verwenden
+            let formData = new FormData();
+            // Standardparameter
+            formData.append('min_age', 18);
+            formData.append('max_age', 35);
+            formData.append('w_pop', 0.3);
+            formData.append('w_age', 0.5);
+            formData.append('w_income', 0.2);
+            
+            // Parameter aus URL holen, falls vorhanden
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('min_age')) formData.append('min_age', urlParams.get('min_age'));
+            if (urlParams.has('max_age')) formData.append('max_age', urlParams.get('max_age'));
+            if (urlParams.has('w_pop')) formData.append('w_pop', urlParams.get('w_pop'));
+            if (urlParams.has('w_age')) formData.append('w_age', urlParams.get('w_age'));
+            if (urlParams.has('w_income')) formData.append('w_income', urlParams.get('w_income'));
+            
+            // Daten abrufen und Plot erstellen
+            $.ajax({
+                url: '/process',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(data) {
+                    $('#loading').hide();
+                    $('#plot-container').show();
+                    
+                    // Plotly-Figur aus JSON laden und anzeigen
+                    const plotlyJson = JSON.parse(data.advanced_analysis.interactive_scatter);
+                    Plotly.newPlot('plot-container', plotlyJson.data, plotlyJson.layout, {
+                        responsive: true,
+                        scrollZoom: true,
+                        displayModeBar: true,
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d']
+                    });
+                },
+                error: function(xhr, status, error) {
+                    $('#loading').html('<div class="alert alert-danger">Fehler beim Laden der Daten: ' + error + '</div>');
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
